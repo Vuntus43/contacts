@@ -1,0 +1,104 @@
+{% extends "contacts_io/base.html" %}
+{% block title %}Экспорт контактов{% endblock %}
+
+{% block head %}
+  <script src="https://api.bitrix24.com/api/v1/"></script>
+  <style>
+    nav a { margin-right: 12px; }
+    .debug { background:#f7f7f7; border:1px solid #ddd; padding:8px; margin-top:12px; font:12px/1.4 monospace }
+  </style>
+{% endblock %}
+
+{% block content %}
+
+  <h1>Экспорт контактов</h1>
+
+  <form id="export-form" method="post"
+        action="{% url 'export_download' %}{% if request.META.QUERY_STRING %}?{{ request.META.QUERY_STRING }}{% endif %}">
+    {% csrf_token %}
+    {{ form.as_p }}
+
+    <!-- скрытые поля для main_auth(on_start=True) -->
+    <input type="hidden" name="AUTH_ID"    id="auth_id">
+    <input type="hidden" name="REFRESH_ID" id="refresh_id">
+    <input type="hidden" name="member_id"  id="member_id">
+    <input type="hidden" name="DOMAIN"     id="domain">
+
+    <button type="submit">Скачать</button>
+  </form>
+
+  <!-- (необязательно) маленькая отладка токенов -->
+  <script>
+  (function() {
+    var form   = document.getElementById('export-form');
+    var dbgBox = document.getElementById('dbg');
+
+    function setVal(id, v){ var el=document.getElementById(id); if(el) el.value=v||''; }
+    function getVal(id){ var el=document.getElementById(id); return el?el.value:''; }
+    function mask(s){ if(!s) return ''; s=String(s); return s.length>10 ? s.slice(0,4)+'…'+s.slice(-4) : '***'; }
+    function debug(lines){
+      if (!dbgBox) return;
+      dbgBox.hidden = false;
+      dbgBox.textContent = lines.join('\n');
+    }
+
+    // 1) выставим DOMAIN из query сразу (подстраховка)
+    document.addEventListener('DOMContentLoaded', function(){
+      var qsDomain = new URLSearchParams(location.search).get('DOMAIN') || '';
+      if (qsDomain && !getVal('domain')) setVal('domain', qsDomain);
+
+      // 2) попытаемся получить токены из BX24
+      try {
+        if (typeof BX24 !== 'undefined' && BX24.init) {
+          BX24.init(function(){
+            try{
+              var a = BX24.getAuth ? (BX24.getAuth() || {}) : {};
+              if (a.access_token)  setVal('auth_id', a.access_token);
+              if (a.refresh_token) setVal('refresh_id', a.refresh_token);
+              if (a.member_id)     setVal('member_id', a.member_id);
+              if (!getVal('domain') && a.domain) setVal('domain', a.domain);
+
+              debug([
+                'BX24.available: true',
+                'AUTH_ID: ' + (getVal('auth_id')? ('ok '+mask(getVal('auth_id'))) : '—'),
+                'REFRESH_ID: ' + (getVal('refresh_id')? ('ok '+mask(getVal('refresh_id'))) : '—'),
+                'member_id: ' + (getVal('member_id') || '—'),
+                'DOMAIN: ' + (getVal('domain') || '—')
+              ]);
+            } catch(e){ /* ignore */ }
+          });
+        }
+      } catch(e) { /* ignore */ }
+    });
+
+    // 3) перед submit ещё раз добиваем токены (если init не успел)
+    form.addEventListener('submit', function(e){
+      // если уже всё есть — просто отправляем
+      if (getVal('auth_id') && getVal('domain')) return;
+
+      e.preventDefault();
+      try {
+        if (typeof BX24 !== 'undefined' && BX24.init) {
+          BX24.init(function(){
+            try{
+              var a = BX24.getAuth ? (BX24.getAuth() || {}) : {};
+              if (!getVal('auth_id') && a.access_token) setVal('auth_id', a.access_token);
+              if (!getVal('domain')  && a.domain)       setVal('domain', a.domain);
+              if (!getVal('refresh_id') && a.refresh_token) setVal('refresh_id', a.refresh_token);
+              if (!getVal('member_id')  && a.member_id)     setVal('member_id', a.member_id);
+            } catch(e){ /* ignore */ }
+
+            if (!getVal('auth_id')) { alert('AUTH_ID не получен. Откройте страницу из Битрикс24.'); return; }
+            if (!getVal('domain'))  { alert('DOMAIN не получен. Проверьте запуск из портала.'); return; }
+            form.submit();
+          });
+        } else {
+          alert('BX24 недоступен. Запускайте из портала Битрикс24.');
+        }
+      } catch(e) {
+        alert('Не удалось подготовить авторизацию.');
+      }
+    });
+  })();
+  </script>
+{% endblock %}

@@ -20,8 +20,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 SESSION_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SAMESITE = 'None'
-SESSION_COOKIE_SECURE = True  # True, если будешь на https
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = False  # True, если будешь на https
+CSRF_COOKIE_SECURE = False
 
 INSTALLED_APPS = [
     'django.contrib.admin','django.contrib.auth','django.contrib.contenttypes',
@@ -29,6 +29,7 @@ INSTALLED_APPS = [
 
     'integration_utils.bitrix24',
     'integration_utils.its_utils.app_gitpull',
+    'contacts_io',
 ]
 
 MIDDLEWARE = [

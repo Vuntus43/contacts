@@ -1,0 +1,89 @@
+{% extends "contacts_io/base.html" %}
+{% block title %}Импорт контактов{% endblock %}
+{% block head %}
+  <script src="https://api.bitrix24.com/api/v1/"></script>
+{% endblock %}
+
+{% block content %}
+  <h1>Импорт контактов</h1>
+
+  <form id="import-form" method="post" enctype="multipart/form-data"
+        action="{{ request.path }}{% if request.META.QUERY_STRING %}?{{ request.META.QUERY_STRING }}{% endif %}">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" name="action" value="preview">Предпросмотр</button>
+    <button type="submit" name="action" value="import">Импортировать сейчас</button>
+  </form>
+
+  <script>
+  (function () {
+    var form = document.getElementById('import-form');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      // Какая кнопка нажата (preview/import)
+      var actionBtn = (document.activeElement && document.activeElement.value) || 'preview';
+
+      // URL берём из атрибута (name="action" перекрывает form.action)
+      var url = form.getAttribute('action') || window.location.href;
+
+      // Инициализируем SDK, затем собираем FormData и подставляем AUTH_ID/DOMAIN
+      BX24.init(function () {
+        var auth    = BX24.getAuth() || {};
+        var access  = auth.access_token || '';
+        var refresh = auth.refresh_token || '';
+        var domainQ = new URLSearchParams(location.search).get('DOMAIN') || '';
+        var domain  = domainQ || auth.domain || '';
+        var member  = auth.member_id || '';
+
+        // Собираем FormData ПОСЛЕ init и пишем токены прямо в неё
+        var fd = new FormData(form);
+        fd.set('action', actionBtn);
+        if (access)  fd.set('AUTH_ID', access);     // для @main_auth(on_start=True)
+        if (refresh) fd.set('REFRESH_ID', refresh);
+        if (member)  fd.set('member_id', member);
+        if (domain)  fd.set('DOMAIN', domain);
+
+        fetch(url, {
+          method: 'POST',
+          body: fd,
+          credentials: 'include'
+        })
+        .then(function (r) { return r.text(); })
+        .then(function (html) { document.open(); document.write(html); document.close(); })
+        .catch(function (e) { console.error(e); alert('Ошибка сети'); });
+      });
+    });
+  })();
+  </script>
+
+  {% if auth_error %}
+    <p class="error">{{ auth_error }}</p>
+  {% endif %}
+
+  {% if total is not None %}
+    <hr>
+    <p>Всего строк в файле: {{ total }}</p>
+
+    {% if preview %}
+      <h2>Предпросмотр (первые 5 строк)</h2>
+      <table>
+        <tr>
+          {% for h in headers %}<th>{{ h }}</th>{% endfor %}
+        </tr>
+        {% for row in preview %}
+          <tr>
+            {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+      </table>
+    {% endif %}
+  {% endif %}
+
+  {% if import_stats %}
+    <hr>
+    <h2>Результат импорта</h2>
+    <p>Компаний создано: {{ import_stats.companies_created }}</p>
+    <p>Контактов добавлено: {{ import_stats.contacts_added }}</p>
+  {% endif %}
+{% endblock %}

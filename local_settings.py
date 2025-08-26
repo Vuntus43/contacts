@@ -14,7 +14,7 @@ APP_SETTINGS = LocalSettingsClass(
     application_index_path='/',
 )
 
-DOMAIN = 'https://127.0.0.1:8000'
+DOMAIN = 'http://127.0.0.1:8000'
 
 DATABASES = {
     'default': {
